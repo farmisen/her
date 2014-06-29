@@ -189,18 +189,20 @@ module Her
           attributes.each do |attribute|
             attribute = attribute.to_sym
 
-            unless instance_methods.include?(:"#{attribute}=")
+            unless _instance_methods.include?(:"#{attribute}=")
               define_method("#{attribute}=") do |value|
-                @attributes[:"#{attribute}"] = nil unless @attributes.include?(:"#{attribute}")
-                self.send(:"#{attribute}_will_change!") if @attributes[:'#{attribute}'] != value
-                @attributes[:"#{attribute}"] = value
+                @attributes[attribute] = nil unless @attributes.include?(attribute)
+                self.send(:"#{attribute}_will_change!") if @attributes[attribute] != value
+                @attributes[attribute] = value
               end
+              _instance_methods << :"#{attribute}="
             end
 
-            unless instance_methods.include?(:"#{attribute}?")
+            unless _instance_methods.include?(:"#{attribute}?")
               define_method("#{attribute}?") do
-                @attributes.include?(:"#{attribute}") && @attributes[:"#{attribute}"].present?
+                @attributes.include?(attribute) && @attributes[attribute].present?
               end
+              _instance_methods << :"#{attribute}?"
             end
           end
         end
@@ -233,7 +235,7 @@ module Her
 
         # @private
         def setter_method_names
-          @_her_setter_method_names ||= instance_methods.inject(Set.new) do |memo, method_name|
+          @_her_setter_method_names ||= _instance_methods.inject(Set.new) do |memo, method_name|
             memo << method_name.to_s if method_name.to_s.end_with?('=')
             memo
           end
@@ -258,6 +260,10 @@ module Her
             define_method(value) { @#{name} }
             define_method(value.to_s+'=') { |value| @#{name} = value }
           RUBY
+        end
+
+        def _instance_methods
+          @_instance_methods ||= instance_methods
         end
       end
     end

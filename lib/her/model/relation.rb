@@ -1,3 +1,5 @@
+require 'request_store'
+
 module Her
   module Model
     class Relation
@@ -82,28 +84,46 @@ module Her
       # @example
       #   @users = User.find([1, 2])
       #   # Fetched via GET "/users/1" and GET "/users/2"
+
+      def read_cached(key)
+        RequestStore.store[key]
+      end
+
+      def write_cached(key, data)
+        RequestStore.store[key] = data
+      end
+
+      def fetch_cached(key)
+        read_cached(key) || yield.tap { |data| write_cached(key, data) }
+      end
+
       def find(*ids)
         params = @params.merge(ids.last.is_a?(Hash) ? ids.pop : {})
         ids = Array(params[@parent.primary_key]) if params.key?(@parent.primary_key)
 
         results = ids.flatten.compact.uniq.map do |id|
-          resource = nil
-          request_params = params.merge(
-            :_method => @parent.method_for(:find),
-            :_path => @parent.build_request_path(params.merge(@parent.primary_key => id))
-          )
 
-          @parent.request(request_params) do |parsed_data, response|
-            if response.success?
-              resource = @parent.new_from_parsed_data(parsed_data)
-              resource.instance_variable_set(:@changed_attributes, {})
-              resource.run_callbacks :find
-            else
-              return nil
+          path = @parent.build_request_path(params.merge(@parent.primary_key => id))
+
+          fetch_cached(path) {
+            resource = nil
+            request_params = params.merge(
+                :_method => @parent.method_for(:find),
+                :_path => path
+            )
+
+            @parent.request(request_params) do |parsed_data, response|
+              if response.success?
+                resource = @parent.new_from_parsed_data(parsed_data)
+                resource.instance_variable_set(:@changed_attributes, {})
+                resource.run_callbacks :find
+              else
+                return nil
+              end
             end
-          end
+            resource
+          }
 
-          resource
         end
 
         ids.length > 1 || ids.first.kind_of?(Array) ? results : results.first

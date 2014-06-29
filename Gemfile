@@ -8,3 +8,5 @@ else
   gem 'activemodel', '~> 3.2.0'
   gem 'activesupport', '~> 3.2.0'
 end
+
+gem 'request_store'
